@@ -12,7 +12,7 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
-int nextpid = 1;
+int itrpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
@@ -48,7 +48,7 @@ void procinit(void)
 {
   struct proc *p;
 
-  initlock(&pid_lock, "nextpid");
+  initlock(&pid_lock, "itrpid");
   initlock(&wait_lock, "wait_lock");
   for (p = proc; p < &proc[NPROC]; p++)
   {
@@ -92,8 +92,8 @@ int allocpid()
   int pid;
 
   acquire(&pid_lock);
-  pid = nextpid;
-  nextpid = nextpid + 1;
+  pid = itrpid;
+  itrpid = itrpid + 1;
   release(&pid_lock);
 
   return pid;
@@ -453,6 +453,15 @@ int wait(uint64 addr)
   }
 }
 
+int proc_priority(int niceness, uint64 static_priority)
+{
+  int temp = static_priority - niceness + 5;
+  if (temp > 100)
+    temp = 100;
+  if (temp < 0)
+    temp = 0;
+  return temp;
+}
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -464,15 +473,22 @@ void scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
+  int flag = 1;
+  // scheduler goes over an infinite loop ,
   for (;;)
   {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+#ifdef RR
+    if (flag)
+    {
+      printf("RR\n");
+      flag = 0;
+    }
     for (p = proc; p < &proc[NPROC]; p++)
     {
+      // printf("RR\n");
       acquire(&p->lock);
       if (p->state == RUNNABLE)
       {
@@ -489,6 +505,87 @@ void scheduler(void)
       }
       release(&p->lock);
     }
+#else
+#ifdef FCFS
+    intr_on();
+    struct proc *first_come_proc = 0;
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+      // acquire the lock
+      // lock must be acquired before checking for state property of a process
+      acquire(&p->lock);
+      if (p->state == RUNNABLE) // check if the process is RUNNABLE
+      {
+        if (first_come_proc == 0)
+        {
+          first_come_proc = p;
+          continue;
+        }
+        if (first_come_proc->creation_time > p->creation_time)
+        {
+          // release the lock for the process that was chosen earlier
+          release(&first_come_proc->lock);
+          first_come_proc = p;
+          continue;
+        }
+      }
+      // release the lock for the proc not chosen.
+      // might be scheduled by some other CPU
+      release(&p->lock);
+    }
+    if (first_come_proc != 0)
+    {
+      first_come_proc->state = RUNNING;
+      c->proc = first_come_proc;
+      swtch(&c->context, &first_come_proc->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&first_come_proc->lock);
+      // process done running , release the process lock :)
+    }
+  }
+  // struct proc *first_come_proc = 0;
+  // uint min_ctime;
+  // for (p = proc; p < &proc[NPROC]; p++)
+  // {
+  //   //  acquire(&p->lock);
+  //   if (p->state == RUNNABLE)
+  //   {
+  //     if (first_come_proc == 0)
+  //     {
+  //       min_ctime = p->creation_time;
+  //       first_come_proc = p;
+  //     }
+  //     else if (p->creation_time < min_ctime)
+  //     {
+  //       min_ctime = p->creation_time;
+  //       first_come_proc = p;
+  //     }
+  //   }
+  //   //    release(&p->lock);
+  // }
+  // if (first_come_proc != 0 && first_come_proc->state == RUNNABLE)
+  // {
+  //   p = first_come_proc;
+  //   // acquire(&p->lock);
+  //   p->state = RUNNING;
+  //   c->proc = p;
+  //   swtch(&c->context, &p->context);
+
+  //   // Process is done running for now.
+  //   // It should have changed its p->state before coming back.
+  //   c->proc = 0;
+  //   //    release(&p->lock);
+  // }
+#else
+#ifdef PBS
+#else
+#ifdef MLFQ
+#endif
+#endif
+#endif
+#endif
   }
 }
 
