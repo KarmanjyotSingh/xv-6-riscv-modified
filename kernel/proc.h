@@ -118,5 +118,11 @@ struct proc
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  int mask; // for storing the mask for the given strace syscall
+  // for storing the mask for the given strace syscall
+  int mask;
+
+  // store the details for the process waitx - start time , creation time ,
+  uint run_time;      // how long the process was running
+  uint creation_time; // when was the process created
+  uint exit_time;     // when the process exited
 };

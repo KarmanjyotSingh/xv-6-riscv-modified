@@ -27,6 +27,9 @@ int uptime(void);
 // add trace sys_call interface
 int trace(int);
 
+// add waitx sys_call interface
+int waitx(int * /*creation_time */, int */*run_time*/, int */*exit_time*/);
+
 // ulib.c
 int stat(const char *, struct stat *);
 char *strcpy(char *, const char *);

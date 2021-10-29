@@ -100,7 +100,8 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
-extern uint64 sys_trace(void);
+extern uint64 sys_trace(void); // added strace
+extern uint64 sys_waitx(void);
 
 static uint64 (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -125,6 +126,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_mkdir] sys_mkdir,
     [SYS_close] sys_close,
     [SYS_trace] sys_trace,
+    [SYS_waitx] sys_waitx,
 };
 
 // list storing names of syscalls corresponding to each syscall id
@@ -151,6 +153,7 @@ char *syscall_list[] = {
     [SYS_mkdir] "mkdir",
     [SYS_close] "close",
     [SYS_trace] "trace",
+    [SYS_waitx] "waitx",
 };
 
 // array indexed by syscall ID , storing the number of arguments needed by each of the sys call
@@ -177,6 +180,7 @@ int syscall_arg_count[] = {
     [SYS_mkdir] 1,
     [SYS_close] 1,
     [SYS_trace] 1,
+    [SYS_waitx] 3,
 };
 
 void syscall(void)
