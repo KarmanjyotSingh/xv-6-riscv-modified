@@ -494,14 +494,12 @@ int set_priority(int new_static_priority, int proc_pid)
     return -1;
   }
   int found = 0;
-  int old_pbs_priority = 101;
   for (p = proc; p < &proc[NPROC]; p++)
   {
     acquire(&p->lock);
     if (p->pid == proc_pid)
     {
       found = 1;
-      old_pbs_priority = proc_priority(p);
       old_static_priority = p->priority;
       p->priority = new_static_priority;
       break;
@@ -510,11 +508,10 @@ int set_priority(int new_static_priority, int proc_pid)
   }
   if (found)
   {
-    int new_pbs_priority = proc_priority(p);
     p->last_run = 0;
     p->last_sleep = 0;
     release(&p->lock);
-    if (old_pbs_priority > new_pbs_priority)
+    if (old_static_priority > new_static_priority)
 #ifdef PBS
       yield();
 #else
