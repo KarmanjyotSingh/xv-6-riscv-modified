@@ -126,8 +126,9 @@ struct proc
   uint exit_time;     // when the process exited
 
   // PBS SCHEDULER
-  uint priority;
-  uint num_run;
-  uint ticks_last_scheduled;
-  uint last_run;
+  uint priority;             // priority of the process
+  uint num_run;              // number of times it has been scheduled
+  uint ticks_last_scheduled; // ticks of the last time it was scheduled
+  uint last_run;             //
+  uint last_sleep;
 };

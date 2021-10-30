@@ -28,8 +28,10 @@ int uptime(void);
 int trace(int);
 
 // add waitx sys_call interface
-int waitx(int * /*creation_time */, int */*run_time*/, int */*exit_time*/);
+int waitx(int * /*creation_time */, int * /*run_time*/, int * /*exit_time*/);
 
+// add set_priority syscall
+int set_priority(int, int);
 // ulib.c
 int stat(const char *, struct stat *);
 char *strcpy(char *, const char *);

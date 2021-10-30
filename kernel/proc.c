@@ -138,6 +138,7 @@ found:
   p->num_run = 0;
   p->ticks_last_scheduled = 0;
   p->last_run = 0;
+  p->last_sleep = 0;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
@@ -465,21 +466,64 @@ int wait(uint64 addr)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define NULL 0
+
 int proc_priority(const struct proc *process)
 {
   // got three factors to consider , ye /
   int niceness = 5; // default value
-  int time_diff = ticks - process->ticks_last_scheduled;
-  if (time_diff != 0)
+
+  if (process->ticks_last_scheduled != 0 && process->num_run != 0) // if the process hasnt been scheduled yet before
   {
-    int sleeping = time_diff - process->run_time;
-    niceness = ((sleeping) / (time_diff)) * 10;
-    // time_diff = running + sleeping time yeah :)
-    // set the niceness
+    int time_diff = process->last_run + process->last_sleep;
+    int sleeping = process->last_sleep;
+    if (time_diff != 0)
+      niceness = ((sleeping) / (time_diff)) * 10;
   }
   // return the dynamic priority of the process
   return MAX(0, MIN(process->priority - niceness + 5, 100));
 }
+
+int set_priority(int new_static_priority, int proc_pid)
+{
+  struct proc *p;
+  int old_static_priority = -1;
+
+  if (new_static_priority < 0 || new_static_priority > 100)
+  {
+    printf("<new_static_priority> should be in range [0 - 100]\n");
+    return -1;
+  }
+  int found = 0;
+  int old_pbs_priority = 101;
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
+    acquire(&p->lock);
+    if (p->pid == proc_pid)
+    {
+      found = 1;
+      old_pbs_priority = proc_priority(p);
+      old_static_priority = p->priority;
+      p->priority = new_static_priority;
+      break;
+    }
+    release(&p->lock);
+  }
+  if (found)
+  {
+    int new_pbs_priority = proc_priority(p);
+    p->last_run = 0;
+    p->last_sleep = 0;
+    release(&p->lock);
+    if (old_pbs_priority > new_pbs_priority)
+#ifdef PBS
+      yield();
+#else
+      ;
+#endif
+  }
+  return old_static_priority;
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -492,13 +536,11 @@ void scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  int flag = 1;
   // scheduler goes over an infinite loop ,
   for (;;)
   {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
 #ifdef RR
     if (flag)
     {
@@ -526,7 +568,6 @@ void scheduler(void)
     }
 #else
 #ifdef FCFS
-    intr_on();
     struct proc *first_come_proc = NULL;
     for (p = proc; p < &proc[NPROC]; p++)
     {
@@ -535,7 +576,7 @@ void scheduler(void)
       acquire(&p->lock);
       if (p->state == RUNNABLE) // check if the process is RUNNABLE
       {
-        if (first_come_proc == 0)
+        if (first_come_proc == NULL)
         {
           first_come_proc = p;
           continue;
@@ -563,44 +604,10 @@ void scheduler(void)
       release(&first_come_proc->lock);
       // process done running , release the process lock :)
     }
-  }
-  // struct proc *first_come_proc = 0;
-  // uint min_ctime;
-  // for (p = proc; p < &proc[NPROC]; p++)
-  // {
-  //   //  acquire(&p->lock);
-  //   if (p->state == RUNNABLE)
-  //   {
-  //     if (first_come_proc == 0)
-  //     {
-  //       min_ctime = p->creation_time;
-  //       first_come_proc = p;
-  //     }
-  //     else if (p->creation_time < min_ctime)
-  //     {
-  //       min_ctime = p->creation_time;
-  //       first_come_proc = p;
-  //     }
-  //   }
-  //   //    release(&p->lock);
-  // }
-  // if (first_come_proc != 0 && first_come_proc->state == RUNNABLE)
-  // {
-  //   p = first_come_proc;
-  //   // acquire(&p->lock);
-  //   p->state = RUNNING;
-  //   c->proc = p;
-  //   swtch(&c->context, &p->context);
-
-  //   // Process is done running for now.
-  //   // It should have changed its p->state before coming back.
-  //   c->proc = 0;
-  //   //    release(&p->lock);
-  // }
-#endif
-#endif
-    // #else
-    // #ifdef PBS
+    // #endif
+    // #endif
+#else
+#ifdef PBS
     struct proc *pbs_proc = NULL;
     uint pbs_priority = 101;
     // assume for a process we've 3 parameters
@@ -659,6 +666,7 @@ void scheduler(void)
     pbs_proc->num_run += 1;
     pbs_proc->ticks_last_scheduled = ticks;
     pbs_proc->last_run = 0;
+    pbs_proc->last_sleep = 0;
     c->proc = pbs_proc;
     swtch(&c->context, &pbs_proc->context);
     // Process is done running for now.
@@ -666,10 +674,12 @@ void scheduler(void)
     c->proc = 0;
     release(&pbs_proc->lock);
 
-    // #else
-    // #ifdef MLFQ
-    // #endif
-    // #endif
+#else
+#ifdef MLFQ
+#endif
+#endif
+#endif
+#endif
   }
 }
 
@@ -839,7 +849,6 @@ int either_copyin(void *dst, int user_src, uint64 src, uint64 len)
     return 0;
   }
 }
-
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
@@ -934,6 +943,10 @@ void update_time()
     {
       p->last_run++;
       p->run_time++;
+    }
+    else if (p->state == SLEEPING)
+    {
+      p->last_sleep++;
     }
     release(&p->lock);
   }

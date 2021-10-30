@@ -130,3 +130,22 @@ sys_waitx(void)
     return -1;
   return ret;
 }
+
+uint64
+sys_set_priority(void)
+{
+  int new_static_priority;
+  int proc_pid;
+
+  int flg1 = argint(0, &new_static_priority);
+
+  if (flg1 < 0)
+    return -1;
+
+  int flg2 = argint(1, &proc_pid);
+
+  if (flg2 < 0)
+    return -1;
+
+  return set_priority(new_static_priority, proc_pid);
+}

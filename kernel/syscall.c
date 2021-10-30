@@ -102,7 +102,7 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void); // added strace
 extern uint64 sys_waitx(void);
-
+extern uint64 sys_set_priority(void);
 static uint64 (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
     [SYS_exit] sys_exit,
@@ -127,6 +127,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_close] sys_close,
     [SYS_trace] sys_trace,
     [SYS_waitx] sys_waitx,
+    [SYS_set_priority] sys_set_priority,
 };
 
 // list storing names of syscalls corresponding to each syscall id
@@ -154,6 +155,7 @@ char *syscall_list[] = {
     [SYS_close] "close",
     [SYS_trace] "trace",
     [SYS_waitx] "waitx",
+    [SYS_set_priority] "set_priority",
 };
 
 // array indexed by syscall ID , storing the number of arguments needed by each of the sys call
@@ -181,6 +183,7 @@ int syscall_arg_count[] = {
     [SYS_close] 1,
     [SYS_trace] 1,
     [SYS_waitx] 3,
+    [SYS_set_priority] 2,
 };
 
 void syscall(void)
